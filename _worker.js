@@ -1,30 +1,27 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const path = url.pathname.slice(1);
-    if (!path) {
-      return new Response(`gh-proxy<br/>Usage: ${url.origin}/https://github.com/xxx`, {
-        status: 200,
-        headers: { "content-type": "text/html;charset=utf-8" }
-      });
+    // 提取用户要转发的目标地址
+    const targetRaw = url.pathname.slice(1);
+    if (!targetRaw.startsWith("https://")) {
+      return new Response("gh-proxy\nUsage: /https://github.com/xxx", { status: 200 });
     }
-    let targetUrl;
-    try {
-      targetUrl = new URL(path);
-    } catch (e) {
-      return new Response("Invalid url", { status: 400 });
+
+    const targetUrl = new URL(targetRaw);
+    // 白名单：仅允许这两个域名
+    const allowHosts = ["github.com", "raw.githubusercontent.com"];
+    if (!allowHosts.includes(targetUrl.hostname)) {
+      return new Response("Blocked: domain not allowed", { status: 403 });
     }
-    const newReq = new Request(targetUrl, {
+
+    // 透传请求
+    const newReq = new Request(targetRaw, {
       method: request.method,
       headers: request.headers,
       body: request.body,
       redirect: "follow"
     });
-    const res = await fetch(newReq);
-    return new Response(res.body, {
-      status: res.status,
-      statusText: res.statusText,
-      headers: res.headers
-    });
+    const resp = await fetch(newReq);
+    return resp;
   }
 };
